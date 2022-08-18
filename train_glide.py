@@ -12,6 +12,7 @@ from glide_finetune.glide_util import load_model
 from glide_finetune.loader import TextImageDataset
 from glide_finetune.train_util import wandb_setup
 from glide_finetune.wds_loader import glide_wds_loader
+from glide_text2im.nes import NES
 
 
 def run_glide_finetune(
@@ -77,11 +78,22 @@ def run_glide_finetune(
     )
     glide_model.train()
     number_of_params = sum(x.numel() for x in glide_model.parameters())
-    print(f"Number of parameters: {number_of_params}")
+    print(f"Number of parameters in GLIDE: {number_of_params}")
     number_of_trainable_params = sum(
         x.numel() for x in glide_model.parameters() if x.requires_grad
     )
-    print(f"Trainable parameters: {number_of_trainable_params}")
+    print(f"Trainable parameters in GLIDE: {number_of_trainable_params}")
+
+    #NES model setup
+    nes_model = NES()
+    nes_model.train()
+    print("nes model set up successfully")
+    number_of_params = sum(x.numel() for x in nes_model.parameters())
+    print(f"Number of parameters in NES: {number_of_params}")
+    number_of_trainable_params = sum(
+        x.numel() for x in nes_model.parameters() if x.requires_grad
+    )
+    print(f"Trainable parameters in NES: {number_of_trainable_params}")    
 
     # Data setup
     print("Loading data...")
@@ -222,7 +234,7 @@ def parse_args():
     parser.add_argument("--use_fp16", "-fp16", action="store_true")
     parser.add_argument("--device", "-dev", type=str, default="")
     parser.add_argument("--log_frequency", "-freq", type=int, default=100)
-    parser.add_argument("--freeze_transformer", "-fz_xt", action="store_true")
+    parser.add_argument("--freeze_transformer", "-fz_xt", type=bool, default=False)
     parser.add_argument("--freeze_diffusion", "-fz_unet", action="store_true")
     parser.add_argument("--project_name", "-name", type=str, default="glide-finetune")
     parser.add_argument("--activation_checkpointing", "-grad_ckpt", action="store_true")
@@ -311,6 +323,7 @@ if __name__ == "__main__":
         data_dir = glob(os.path.join(args.data_dir, "*.tar"))
     else:
         data_dir = args.data_dir
+    print(args.freeze_transformer)
     
     run_glide_finetune(
         data_dir=args.data_dir,
