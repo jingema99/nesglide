@@ -46,8 +46,6 @@ def base_train_step(
     model_output = glide_model(
         x_t.to(device),
         timesteps.to(device),
-        tokens=tokens.to(device),
-        mask=masks.to(device),
         text_outputs = text_outputs
     )
 
