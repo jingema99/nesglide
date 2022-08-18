@@ -143,7 +143,7 @@ def run_glide_finetune(
 
     # Optimizer setup
     optimizer = th.optim.AdamW(
-        [x for x in glide_model.parameters() if x.requires_grad],
+        [x for x in glide_model.parameters() if x.requires_grad] + [x for x in nes_model.parameters() if x.requires_grad],
         lr=learning_rate,
         weight_decay=adam_weight_decay,
     )
@@ -177,6 +177,7 @@ def run_glide_finetune(
         print(f"Starting epoch {epoch}")
         run_glide_finetune_epoch(
             glide_model=glide_model,
+            nes_model=nes_model,  
             glide_diffusion=glide_diffusion,
             glide_options=glide_options,
             optimizer=optimizer,
