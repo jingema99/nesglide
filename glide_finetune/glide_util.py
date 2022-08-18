@@ -140,7 +140,7 @@ def sample(
         half = x_t[: len(x_t) // 2]
         combined = th.cat([half, half], dim=0)
         text_outputs = nes_model(**kwargs)
-        model_out = glide_model(combined, ts, text_outputs=text_outputs, **kwargs)
+        model_out = glide_model(combined, ts, text_outputs)
         eps, rest = model_out[:, :3], model_out[:, 3:]
         cond_eps, uncond_eps = th.split(eps, len(eps) // 2, dim=0)
         beta = eval_diffusion.betas[
