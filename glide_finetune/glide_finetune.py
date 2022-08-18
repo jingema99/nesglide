@@ -7,9 +7,12 @@ from glide_text2im.text2im_model import Text2ImUNet
 from wandb import wandb
 
 from glide_finetune import glide_util, train_util
+from glide_text2im.nes import NES
+
 
 def base_train_step(
     glide_model: Text2ImUNet,
+    nes_model: NES,
     glide_diffusion: SpacedDiffusion,
     batch: Tuple[th.Tensor, th.Tensor, th.Tensor],
     device: str,
@@ -32,12 +35,22 @@ def base_train_step(
     noise = th.randn_like(reals, device=device)
     x_t = glide_diffusion.q_sample(reals, timesteps, noise=noise).to(device)
     _, C = x_t.shape[:2]
+
+
+    text_outputs = nes_model(
+        tokens=tokens.to(device),
+        mask=masks.to(device),
+    )
+
+
     model_output = glide_model(
         x_t.to(device),
         timesteps.to(device),
         tokens=tokens.to(device),
         mask=masks.to(device),
+        text_outputs = text_outputs
     )
+
     epsilon, _ = th.split(model_output, C, dim=1)
     return th.nn.functional.mse_loss(epsilon, noise.to(device).detach())
 
@@ -67,6 +80,8 @@ def upsample_train_step(
     noise = th.randn_like(high_res_image, device=device) # Noise should be shape of output i think
     noised_high_res_image = glide_diffusion.q_sample(high_res_image, timesteps, noise=noise).to(device)
     _, C = noised_high_res_image.shape[:2]
+
+
     model_output = glide_model(
         noised_high_res_image.to(device),
         timesteps.to(device),
@@ -79,6 +94,7 @@ def upsample_train_step(
 
 def run_glide_finetune_epoch(
     glide_model: Text2ImUNet,
+    nes_model: NES,
     glide_diffusion: SpacedDiffusion,
     glide_options: dict,
     dataloader: th.utils.data.DataLoader,
@@ -105,44 +121,53 @@ def run_glide_finetune_epoch(
 
     glide_model.to(device)
     glide_model.train()
+    nes_model.to(device)
+    nes_model.train()
+
+
     log = {}
     for train_idx, batch in enumerate(dataloader):
         accumulated_loss = train_step(
             glide_model=glide_model,
+            nes_model=nes_model,
             glide_diffusion=glide_diffusion,
             batch=batch,
             device=device,
         )
         accumulated_loss.backward()
         optimizer.step()
+
         glide_model.zero_grad()
+        nes_model.zero_grad()
+
+        print("loss:", accumulated_loss.item() / gradient_accumualation_steps)
         log = {**log, "iter": train_idx, "loss": accumulated_loss.item() / gradient_accumualation_steps}
         # Sample from the model
-        if train_idx > 0 and train_idx % log_frequency == 0:
-            print(f"loss: {accumulated_loss.item():.4f}")
-            print(f"Sampling from model at iteration {train_idx}")
-            samples = glide_util.sample(
-                glide_model=glide_model,
-                glide_options=glide_options,
-                side_x=side_x,
-                side_y=side_y,
-                prompt=prompt,
-                batch_size=sample_bs,
-                guidance_scale=sample_gs,
-                device=device,
-                prediction_respacing=sample_respacing,
-                image_to_upsample=image_to_upsample,
-            )
-            sample_save_path = os.path.join(outputs_dir, f"{train_idx}.png")
-            train_util.pred_to_pil(samples).save(sample_save_path)
-            wandb_run.log(
-                {
-                    **log,
-                    "iter": train_idx,
-                    "samples": wandb.Image(sample_save_path, caption=prompt),
-                }
-            )
-            print(f"Saved sample {sample_save_path}")
+        # if train_idx > 0 and train_idx % log_frequency == 0:
+        #     print(f"loss: {accumulated_loss.item():.4f}")
+        #     print(f"Sampling from model at iteration {train_idx}")
+        #     samples = glide_util.sample(
+        #         glide_model=glide_model,
+        #         glide_options=glide_options,
+        #         side_x=side_x,
+        #         side_y=side_y,
+        #         prompt=prompt,
+        #         batch_size=sample_bs,
+        #         guidance_scale=sample_gs,
+        #         device=device,
+        #         prediction_respacing=sample_respacing,
+        #         image_to_upsample=image_to_upsample,
+        #     )
+        #     sample_save_path = os.path.join(outputs_dir, f"{train_idx}.png")
+        #     train_util.pred_to_pil(samples).save(sample_save_path)
+        #     wandb_run.log(
+        #         {
+        #             **log,
+        #             "iter": train_idx,
+        #             "samples": wandb.Image(sample_save_path, caption=prompt),
+        #         }
+        #     )
+        #     print(f"Saved sample {sample_save_path}")
         if train_idx % 5000 == 0 and train_idx > 0:
             train_util.save_model(glide_model, checkpoints_dir, train_idx, epoch)
             print(
