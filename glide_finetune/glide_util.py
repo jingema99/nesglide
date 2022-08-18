@@ -95,6 +95,7 @@ def read_image(path: str, shape: Tuple[int, int]):
 @th.inference_mode()
 def sample(
     glide_model,
+    nes_model,
     glide_options,
     side_x,
     side_y,
@@ -138,7 +139,8 @@ def sample(
     def cfg_model_fn(x_t, ts, **kwargs):
         half = x_t[: len(x_t) // 2]
         combined = th.cat([half, half], dim=0)
-        model_out = glide_model(combined, ts, **kwargs)
+        text_outputs = nes_model(**kwargs)
+        model_out = glide_model(combined, ts, text_outputs=text_outputs, **kwargs)
         eps, rest = model_out[:, :3], model_out[:, 3:]
         cond_eps, uncond_eps = th.split(eps, len(eps) // 2, dim=0)
         beta = eval_diffusion.betas[
