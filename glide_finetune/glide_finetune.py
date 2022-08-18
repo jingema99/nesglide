@@ -140,34 +140,34 @@ def run_glide_finetune_epoch(
         glide_model.zero_grad()
         nes_model.zero_grad()
 
-        print("loss:", accumulated_loss.item() / gradient_accumualation_steps)
         log = {**log, "iter": train_idx, "loss": accumulated_loss.item() / gradient_accumualation_steps}
         # Sample from the model
-        # if train_idx > 0 and train_idx % log_frequency == 0:
-        #     print(f"loss: {accumulated_loss.item():.4f}")
-        #     print(f"Sampling from model at iteration {train_idx}")
-        #     samples = glide_util.sample(
-        #         glide_model=glide_model,
-        #         glide_options=glide_options,
-        #         side_x=side_x,
-        #         side_y=side_y,
-        #         prompt=prompt,
-        #         batch_size=sample_bs,
-        #         guidance_scale=sample_gs,
-        #         device=device,
-        #         prediction_respacing=sample_respacing,
-        #         image_to_upsample=image_to_upsample,
-        #     )
-        #     sample_save_path = os.path.join(outputs_dir, f"{train_idx}.png")
-        #     train_util.pred_to_pil(samples).save(sample_save_path)
-        #     wandb_run.log(
-        #         {
-        #             **log,
-        #             "iter": train_idx,
-        #             "samples": wandb.Image(sample_save_path, caption=prompt),
-        #         }
-        #     )
-        #     print(f"Saved sample {sample_save_path}")
+        if train_idx > 0 and train_idx % log_frequency == 0:
+            print(f"loss: {accumulated_loss.item():.4f}")
+            print(f"Sampling from model at iteration {train_idx}")
+            samples = glide_util.sample(
+                glide_model=glide_model,
+                nes_model=nes_model,
+                glide_options=glide_options,
+                side_x=side_x,
+                side_y=side_y,
+                prompt=prompt,
+                batch_size=sample_bs,
+                guidance_scale=sample_gs,
+                device=device,
+                prediction_respacing=sample_respacing,
+                image_to_upsample=image_to_upsample,
+            )
+            sample_save_path = os.path.join(outputs_dir, f"{train_idx}.png")
+            train_util.pred_to_pil(samples).save(sample_save_path)
+            wandb_run.log(
+                {
+                    **log,
+                    "iter": train_idx,
+                    "samples": wandb.Image(sample_save_path, caption=prompt),
+                }
+            )
+            print(f"Saved sample {sample_save_path}")
         if train_idx % 5000 == 0 and train_idx > 0:
             train_util.save_model(glide_model, checkpoints_dir, train_idx, epoch)
             print(
