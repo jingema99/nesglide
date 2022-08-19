@@ -9,14 +9,19 @@ from tqdm import tqdm
 
 
 def save_model(
-    glide_model: th.nn.Module, checkpoints_dir: str, train_idx: int, epoch: int
+    glide_model: th.nn.Module, nes_model: th.nn.Module, checkpoints_dir: str, train_idx: int, epoch: int
 ):
     th.save(
         glide_model.state_dict(),
         os.path.join(checkpoints_dir, f"glide-ft-{epoch}x{train_idx}.pt"),
     )
+
+    th.save(
+        nes_model.state_dict(),
+        os.path.join(checkpoints_dir, f"nes-ft-{epoch}x{train_idx}.pt"),
+    )
     tqdm.write(
-        f"Saved checkpoint {train_idx} to {checkpoints_dir}/glide-ft-{epoch}x{train_idx}.pt"
+        f"Saved checkpoint {train_idx} to {checkpoints_dir}/glide-ft-{epoch}x{train_idx}.pt and nes-ft-{epoch}x{train_idx}.pt"
     )
 
 
