@@ -90,7 +90,6 @@ def run_glide_finetune(
     if resume_ckpt == "":
       pass     
     else:
-      resume_ckpt = '/content/drive/MyDrive/researchnote/diffusion_CLEVR/weights/glide-ft-7x17499.pt'
       glide_name = resume_ckpt.split("/")[-1]
       root_weights_dir = resume_ckpt.replace(glide_name,'')
       nes_name = glide_name.replace("glide",'nes')
