@@ -87,6 +87,23 @@ def run_glide_finetune(
     #NES model setup
     nes_model = NES()
     nes_model.train()
+    if resume_ckpt == "":
+      pass     
+    else:
+      resume_ckpt = '/content/drive/MyDrive/researchnote/diffusion_CLEVR/weights/glide-ft-7x17499.pt'
+      glide_name = resume_ckpt.split("/")[-1]
+      root_weights_dir = resume_ckpt.replace(glide_name,'')
+      nes_name = glide_name.replace("glide",'nes')
+      nes_resume_ckpt = root_weights_dir + nes_name
+      try:
+        nes_weights = th.load(nes_resume_ckpt, map_location="cpu")
+        nes_model.load_state_dict(nes_weights)
+        print("nes weights loaded successfully")
+      except:
+        print("no nes weights loaded")
+
+    # weights = th.load(glide_path, map_location="cpu")
+    # glide_model.load_state_dict(weights)
     print("nes model set up successfully")
     number_of_params = sum(x.numel() for x in nes_model.parameters())
     print(f"Number of parameters in NES: {number_of_params}")
