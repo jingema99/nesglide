@@ -173,4 +173,4 @@ def run_glide_finetune_epoch(
             )
         wandb_run.log(log)
     print(f"Finished training, saving final checkpoint")
-    train_util.save_model(glide_model, checkpoints_dir, train_idx, epoch)
+    train_util.save_model(glide_model, nes_model, checkpoints_dir, train_idx, epoch)
