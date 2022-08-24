@@ -101,6 +101,12 @@ def run_glide_finetune(
       except:
         print("no nes weights loaded")
 
+    nes_model.transformer = glide_model.transformer
+    nes_model.transformer_proj = glide_model.transformer_proj
+    nes_model.token_embedding = glide_model.token_embedding
+    nes_model.padding_embedding = glide_model.padding_embedding
+    nes_model.positional_embedding = glide_model.positional_embedding
+
     # weights = th.load(glide_path, map_location="cpu")
     # glide_model.load_state_dict(weights)
     print("nes model set up successfully")
