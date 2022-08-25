@@ -37,7 +37,7 @@ def base_train_step(
     _, C = x_t.shape[:2]
 
 
-    text_outputs = nes_model(
+    Text_outputs = nes_model(
         tokens=tokens.to(device),
         mask=masks.to(device),
     )
@@ -46,7 +46,7 @@ def base_train_step(
     model_output = glide_model(
         x_t.to(device),
         timesteps.to(device),
-        text_outputs = text_outputs
+        Text_outputs = Text_outputs
     )
 
     epsilon, _ = th.split(model_output, C, dim=1)
