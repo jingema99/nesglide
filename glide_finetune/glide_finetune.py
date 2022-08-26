@@ -156,7 +156,7 @@ def run_glide_finetune_epoch(
                 prediction_respacing=sample_respacing,
                 image_to_upsample=image_to_upsample,
             )
-            sample_save_path = os.path.join(outputs_dir, f"{train_idx}.png")
+            sample_save_path = os.path.join(outputs_dir, str(train_idx).zfill(6)+".png")
             train_util.pred_to_pil(samples).save(sample_save_path)
             wandb_run.log(
                 {
