@@ -1,6 +1,7 @@
 import argparse
 from glob import glob
 import os
+import json
 
 import numpy as np
 import torch as th
@@ -44,6 +45,8 @@ def run_glide_finetune(
     enable_upsample=False,
     upsample_factor=4,
     image_to_upsample='low_res_face.png',
+    max_text_len=3,
+    vocab_path = "/content/nesglide/CLEVR_short.json"
 ):
     if "~" in data_dir:
         data_dir = os.path.expanduser(data_dir)
@@ -122,6 +125,10 @@ def run_glide_finetune(
 
     # Data setup
     print("Loading data...")
+    f = open(vocab_path)
+    vocab_dict = json.load(f) 
+    f.close()
+
     if use_webdataset:
         dataset = glide_wds_loader(
             urls=data_dir,
@@ -151,10 +158,11 @@ def run_glide_finetune(
             uncond_p=uncond_p,
             shuffle=True,
             tokenizer=glide_model.tokenizer,
-            text_ctx_len=glide_options["text_ctx"],
+            max_text_len=max_text_len,
             use_captions=use_captions,
             enable_glide_upsample=enable_upsample,
-            upscale_factor=upsample_factor,  # TODO: make this a parameter
+            upscale_factor=upsample_factor, 
+            vocab_dict = vocab_dict,
         )
 
     # Data loader setup
@@ -324,6 +332,9 @@ def parse_args():
         "--upscale_factor", "-upscale", type=int, default=4, help="Upscale factor for training the upsampling model only"
     )
     parser.add_argument("--image_to_upsample", "-lowres", type=str, default="low_res_face.png")
+    parser.add_argument("--max_text_len", "-maxlen", type=int, default=3)
+    parser.add_argument("--vocab_path", "-vocab", type=str, default="/content/nesglide/CLEVR_short.json")
+
     args = parser.parse_args()
 
     return args
@@ -380,4 +391,6 @@ if __name__ == "__main__":
         enable_upsample=args.train_upsample,
         upsample_factor=args.upscale_factor,
         image_to_upsample=args.image_to_upsample,
+        max_text_len = args.max_text_len,
+        vocab_path = args.vocab_path,
     )
