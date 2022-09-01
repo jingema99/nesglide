@@ -91,13 +91,6 @@ def run_glide_finetune(
     nes_model = NES()
     nes_model.train()
 
-    #use pretrained weights
-    nes_model.transformer = glide_model.transformer
-    nes_model.transformer_proj = glide_model.transformer_proj
-    nes_model.token_embedding = glide_model.token_embedding
-    nes_model.padding_embedding = glide_model.padding_embedding
-    nes_model.positional_embedding = glide_model.positional_embedding
-
     if resume_ckpt == "":
       pass     
     else:
