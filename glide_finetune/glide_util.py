@@ -20,21 +20,32 @@ from glide_text2im.tokenizer.bpe import Encoder
 MODEL_TYPES = ["base", "upsample", "base-inpaint", "upsample-inpaint"]
 
 
-def get_uncond_tokens_mask(tokenizer: Encoder):
-    uncond_tokens, uncond_mask = tokenizer.padded_tokens_and_mask([], 128)
+def get_uncond_tokens_mask(
+  max_text_len: int,
+  vocab_dict: dict):
+
+    uncond_tokens = th.full((max_text_len, ), vocab_dict["padding"])
+    uncond_mask = th.full((max_text_len, ), False)
     return th.tensor(uncond_tokens), th.tensor(uncond_mask, dtype=th.bool)
 
 
 def get_tokens_and_mask(
-    tokenizer: Encoder, prompt: str = "", context_len: int = 128
+    prompt: str, 
+    max_text_len: int,
+    vocab_dict: dict,
 ) -> Tuple[th.tensor, th.tensor]:
+
     if len(prompt) == 0:
-        return get_uncond_tokens_mask(tokenizer)
+        return get_uncond_tokens_mask(max_text_len, vocab_dict)
     else:
-        tokens = tokenizer.encode(prompt)
-        tokens, mask = tokenizer.padded_tokens_and_mask(tokens, context_len)
-        tokens = th.tensor(tokens)  # + uncond_tokens)
-        mask = th.tensor(mask, dtype=th.bool)  # + uncond_mask, dtype=th.bool)
+        tokens = th.full((max_text_len, ), vocab_dict["padding"])
+        mask = th.full((max_text_len, ), False)
+
+        word_list = prompt.split(" ")
+        for idx, word in enumerate(word_list):
+          tokens[idx] = vocab_dict[word]
+          mask[idx] = True
+
         return tokens, mask
 
 
