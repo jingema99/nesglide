@@ -1,176 +1,146 @@
-import os
-from typing import Tuple
+import time
+from pathlib import Path
+from random import randint, choice, random
+
+import PIL
 
 import torch as th
-from glide_text2im.respace import SpacedDiffusion
-from glide_text2im.text2im_model import Text2ImUNet
-from wandb import wandb
-
-from glide_finetune import glide_util, train_util
-from glide_text2im.nes import NES
+from torch.utils.data import Dataset
+from torchvision import transforms as T
+from glide_finetune.glide_util import get_tokens_and_mask, get_uncond_tokens_mask
+from glide_finetune.train_util import pil_image_to_norm_tensor
 
 
-def base_train_step(
-    glide_model: Text2ImUNet,
-    nes_model: NES,
-    glide_diffusion: SpacedDiffusion,
-    batch: Tuple[th.Tensor, th.Tensor, th.Tensor],
-    device: str,
-):
+def random_resized_crop(image, shape, resize_ratio=1.0):
     """
-    Perform a single training step.
+    Randomly resize and crop an image to a given size.
 
-        Args:
-            glide_model: The model to train.
-            glide_diffusion: The diffusion to use.
-            batch: A tuple of (tokens, masks, reals) where tokens is a tensor of shape (batch_size, seq_len), masks is a tensor of shape (batch_size, seq_len) and reals is a tensor of shape (batch_size, 3, side_x, side_y) normalized to [-1, 1].
-            device: The device to use for getting model outputs and computing loss.
-        Returns:
-            The loss.
+    Args:
+        image (PIL.Image): The image to be resized and cropped.
+        shape (tuple): The desired output shape.
+        resize_ratio (float): The ratio to resize the image.
     """
-    tokens, masks, reals = [x.to(device) for x in batch]
-    timesteps = th.randint(
-        0, len(glide_diffusion.betas) - 1, (reals.shape[0],), device=device
-    )
-    noise = th.randn_like(reals, device=device)
-    x_t = glide_diffusion.q_sample(reals, timesteps, noise=noise).to(device)
-    _, C = x_t.shape[:2]
+    image_transform = T.RandomResizedCrop(shape, scale=(resize_ratio, 1.0), ratio=(1.0, 1.0))
+    return image_transform(image)
 
 
-    Text_outputs = nes_model(
-        tokens=tokens.to(device),
-        mask=masks.to(device),
-    )
+def get_image_files_dict(base_path):
+    image_files = [
+        *base_path.glob("**/*.png"),
+        *base_path.glob("**/*.jpg"),
+        *base_path.glob("**/*.jpeg"),
+        *base_path.glob("**/*.bmp"),
+    ]
+    return {image_file.stem: image_file for image_file in image_files}
 
 
-    model_output = glide_model(
-        x_t.to(device),
-        timesteps.to(device),
-        Text_outputs = Text_outputs
-    )
-
-    epsilon, _ = th.split(model_output, C, dim=1)
-    return th.nn.functional.mse_loss(epsilon, noise.to(device).detach())
-
-def upsample_train_step(
-    glide_model: Text2ImUNet,
-    glide_diffusion: SpacedDiffusion,
-    batch: Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor],
-    device: str,
-):
-    """
-    Perform a single training step.
-
-        Args:
-            glide_model: The model to train.
-            glide_diffusion: The diffusion to use.
-            batch: A tuple of (tokens, masks, low_res, high_res) where 
-                - tokens is a tensor of shape (batch_size, seq_len), 
-                - masks is a tensor of shape (batch_size, seq_len) with dtype torch.bool
-                - low_res is a tensor of shape (batch_size, 3, base_x, base_y), normalized to [-1, 1]
-                - high_res is a tensor of shape (batch_size, 3, base_x*4, base_y*4), normalized to [-1, 1]
-            device: The device to use for getting model outputs and computing loss.
-        Returns:
-            The loss.
-    """
-    tokens, masks, low_res_image, high_res_image = [ x.to(device) for x in batch ]
-    timesteps = th.randint(0, len(glide_diffusion.betas) - 1, (low_res_image.shape[0],), device=device)
-    noise = th.randn_like(high_res_image, device=device) # Noise should be shape of output i think
-    noised_high_res_image = glide_diffusion.q_sample(high_res_image, timesteps, noise=noise).to(device)
-    _, C = noised_high_res_image.shape[:2]
+def get_text_files_dict(base_path):
+    text_files = [*base_path.glob("**/*.txt")]
+    return {text_file.stem: text_file for text_file in text_files}
 
 
-    model_output = glide_model(
-        noised_high_res_image.to(device),
-        timesteps.to(device),
-        low_res=low_res_image.to(device),
-        tokens=tokens.to(device),
-        mask=masks.to(device))
-    epsilon, _ = th.split(model_output, C, dim=1)
-    return th.nn.functional.mse_loss(epsilon, noise.to(device).detach())
+def get_shared_stems(image_files_dict, text_files_dict):
+    image_files_stems = set(image_files_dict.keys())
+    text_files_stems = set(text_files_dict.keys())
+    return list(image_files_stems & text_files_stems)
 
 
-def run_glide_finetune_epoch(
-    glide_model: Text2ImUNet,
-    nes_model: NES,
-    glide_diffusion: SpacedDiffusion,
-    glide_options: dict,
-    dataloader: th.utils.data.DataLoader,
-    optimizer: th.optim.Optimizer,
-    sample_bs: int,  # batch size for inference
-    sample_gs: float = 4.0,  # guidance scale for inference
-    sample_respacing: str = '100', # respacing for inference
-    prompt: str = "",  # prompt for inference, not training
-    side_x: int = 64,
-    side_y: int = 64,
-    outputs_dir: str = "./outputs",
-    checkpoints_dir: str = "./finetune_checkpoints",
-    device: str = "cpu",
-    log_frequency: int = 100,
-    wandb_run=None,
-    gradient_accumualation_steps=1,
-    epoch: int = 0,
-    train_upsample: bool = False,
-    upsample_factor=4,
-    image_to_upsample='low_res_face.png',
-):
-    if train_upsample: train_step = upsample_train_step
-    else: train_step = base_train_step
+class TextImageDataset(Dataset):
+    def __init__(
+        self,
+        folder="",
+        side_x=64,
+        side_y=64,
+        resize_ratio=0.75,
+        shuffle=False,
+        tokenizer=None,
+        max_text_len=3,
+        uncond_p=0.0,
+        use_captions=False,
+        enable_glide_upsample=False,
+        upscale_factor=4,
+        vocab_dict = None,
+    ):
+        super().__init__()
+        folder = Path(folder)
 
-    glide_model.to(device)
-    glide_model.train()
-    nes_model.to(device)
-    nes_model.train()
+        self.image_files = get_image_files_dict(folder)
+        if use_captions:
+            self.text_files = get_text_files_dict(folder)
+            self.keys = get_shared_stems(self.image_files, self.text_files)
+            print(f"Found {len(self.keys)} images.")
+            print(f"Using {len(self.text_files)} text files.")
+        else:
+            self.text_files = None
+            self.keys = list(self.image_files.keys())
+            print(f"Found {len(self.keys)} images.")
+            print(f"NOT using text files. Restart with --use_captions to enable...")
+            time.sleep(3)
+
+        self.resize_ratio = resize_ratio
+        self.max_text_len = max_text_len
+        self.vocab_dict = vocab_dict
+
+        self.shuffle = shuffle
+        self.prefix = folder
+        self.side_x = side_x
+        self.side_y = side_y
+        self.tokenizer = tokenizer
+        self.uncond_p = uncond_p
+        self.enable_upsample = enable_glide_upsample
+        self.upscale_factor = upscale_factor
+
+    def __len__(self):
+        return len(self.keys)
+
+    def random_sample(self):
+        return self.__getitem__(randint(0, self.__len__() - 1))
+
+    def sequential_sample(self, ind):
+        if ind >= self.__len__() - 1:
+            return self.__getitem__(0)
+        return self.__getitem__(ind + 1)
+
+    def skip_sample(self, ind):
+        if self.shuffle:
+            return self.random_sample()
+        return self.sequential_sample(ind=ind)
+
+    def get_caption(self, ind, max_text_len):
+        key = self.keys[ind]
+        text_file = self.text_files[key]
+        descriptions = open(text_file, "r").readlines()
+        descriptions = list(filter(lambda t: len(t) > 0, descriptions))
+        try:
+            description = choice(descriptions).strip()
+            return get_tokens_and_mask(prompt=description, max_text_len=max_text_len, vocab_dict=self.vocab_dict)
+        except IndexError as zero_captions_in_file_ex:
+            print(f"An exception occurred trying to load file {text_file}.")
+            print(f"Skipping index {ind}")
+            return self.skip_sample(ind)
+
+    def __getitem__(self, ind):
+        key = self.keys[ind]
+        image_file = self.image_files[key]
+        if self.text_files is None or random() < self.uncond_p:
+            tokens, mask = get_uncond_tokens_mask(self.max_text_len, self.vocab_dict)
+        else:
+            tokens, mask = self.get_caption(ind, self.max_text_len)
 
 
-    log = {}
-    for train_idx, batch in enumerate(dataloader):
-        accumulated_loss = train_step(
-            glide_model=glide_model,
-            nes_model=nes_model,
-            glide_diffusion=glide_diffusion,
-            batch=batch,
-            device=device,
-        )
-        accumulated_loss.backward()
-        optimizer.step()
-
-        glide_model.zero_grad()
-        nes_model.zero_grad()
-
-        log = {**log, "iter": train_idx, "loss": accumulated_loss.item() / gradient_accumualation_steps}
-        # Sample from the model
-        if train_idx > 0 and train_idx % log_frequency == 0:
-            print(f"loss: {accumulated_loss.item():.4f}")
-            print(f"Sampling from model at iteration {train_idx}")
-            samples = glide_util.sample(
-                glide_model=glide_model,
-                nes_model=nes_model,
-                glide_options=glide_options,
-                side_x=side_x,
-                side_y=side_y,
-                prompt=prompt,
-                batch_size=sample_bs,
-                guidance_scale=sample_gs,
-                device=device,
-                prediction_respacing=sample_respacing,
-                image_to_upsample=image_to_upsample,
-            )
-            sample_save_path = os.path.join(outputs_dir, str(train_idx).zfill(6)+".png")
-            train_util.pred_to_pil(samples).save(sample_save_path)
-            wandb_run.log(
-                {
-                    **log,
-                    "iter": train_idx,
-                    "samples": wandb.Image(sample_save_path, caption=prompt),
-                }
-            )
-            print(f"Saved sample {sample_save_path}")
-        if train_idx % 5000 == 0 and train_idx > 0:
-            train_util.save_model(glide_model, nes_model, checkpoints_dir, train_idx, epoch)
-            print(
-                f"Saved checkpoint {train_idx} to {checkpoints_dir}/glide-ft-{train_idx}.pt and nes-ft-{train_idx}.pt"
-            )
-        wandb_run.log(log)
-    print(f"Finished training, saving final checkpoint")
-    train_util.save_model(glide_model, nes_model, checkpoints_dir, train_idx, epoch)
+        try:
+            original_pil_image = PIL.Image.open(image_file).convert("RGB")
+        except (OSError, ValueError) as e:
+            print(f"An exception occurred trying to load file {image_file}.")
+            print(f"Skipping index {ind}")
+            return self.skip_sample(ind)
+        if self.enable_upsample: # the base image used should be derived from the cropped high-resolution image.
+            upsample_pil_image = random_resized_crop(original_pil_image, (self.side_x * self.upscale_factor, self.side_y * self.upscale_factor), resize_ratio=self.resize_ratio)
+            upsample_tensor = pil_image_to_norm_tensor(upsample_pil_image)
+            base_pil_image = upsample_pil_image.resize((self.side_x, self.side_y), resample=PIL.Image.BICUBIC)
+            base_tensor = pil_image_to_norm_tensor(base_pil_image)
+            return th.tensor(tokens), th.tensor(mask, dtype=th.bool), base_tensor, upsample_tensor
+        
+        base_pil_image = random_resized_crop(original_pil_image, (self.side_x, self.side_y), resize_ratio=self.resize_ratio)
+        base_tensor = pil_image_to_norm_tensor(base_pil_image)
+        return th.tensor(tokens), th.tensor(mask, dtype=th.bool), base_tensor
