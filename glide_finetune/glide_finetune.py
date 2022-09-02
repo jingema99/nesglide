@@ -111,6 +111,8 @@ def run_glide_finetune_epoch(
     train_upsample: bool = False,
     upsample_factor=4,
     image_to_upsample='low_res_face.png',
+    vocab_dict=None,
+    max_text_len=3
 ):
     if train_upsample: train_step = upsample_train_step
     else: train_step = base_train_step
@@ -153,6 +155,8 @@ def run_glide_finetune_epoch(
                 device=device,
                 prediction_respacing=sample_respacing,
                 image_to_upsample=image_to_upsample,
+                vocab_dict=vocab_dict,
+                max_text_len=max_text_len,
             )
             sample_save_path = os.path.join(outputs_dir, str(train_idx).zfill(6)+".png")
             train_util.pred_to_pil(samples).save(sample_save_path)
