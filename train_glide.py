@@ -1,3 +1,4 @@
+#train_glide.py
 import argparse
 from glob import glob
 import os
@@ -389,3 +390,4 @@ if __name__ == "__main__":
         max_text_len = args.max_text_len,
         vocab_path = args.vocab_path,
     )
+  #train_glide.py
