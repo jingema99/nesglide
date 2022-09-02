@@ -1,3 +1,4 @@
+#loader.py
 import time
 from pathlib import Path
 from random import randint, choice, random
@@ -144,3 +145,4 @@ class TextImageDataset(Dataset):
         base_pil_image = random_resized_crop(original_pil_image, (self.side_x, self.side_y), resize_ratio=self.resize_ratio)
         base_tensor = pil_image_to_norm_tensor(base_pil_image)
         return th.tensor(tokens), th.tensor(mask, dtype=th.bool), base_tensor
+#loader.py
