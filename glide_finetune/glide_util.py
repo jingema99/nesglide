@@ -1,4 +1,4 @@
-## glide_util.py
+# glide_util.py
 # Utilities for tokenizing, padding, and batching data and sampling from GLIDE.
 
 import os
@@ -196,3 +196,4 @@ def sample(
     )[:batch_size]
     glide_model.del_cache()
     return samples
+#glide_util.py
