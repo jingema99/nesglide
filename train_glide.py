@@ -199,7 +199,7 @@ def run_glide_finetune(
 
     os.makedirs(current_run_ckpt_dir, exist_ok=True)
 
-    for epoch in trange(num_epochs):
+    for epoch in range(num_epochs):
         print(f"Starting epoch {epoch}")
         run_glide_finetune_epoch(
             glide_model=glide_model,
@@ -221,6 +221,8 @@ def run_glide_finetune(
             epoch=epoch,
             gradient_accumualation_steps=1,
             train_upsample=enable_upsample,
+            vocab_dict=vocab_dict,
+            max_text_len=max_text_len,
         )
 
 
