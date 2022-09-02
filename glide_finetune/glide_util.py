@@ -118,6 +118,8 @@ def sample(
     upsample_enabled=False,
     image_to_upsample='',
     upsample_temp=0.997,
+    vocab_dict=None,
+    max_text_len=3,
 ):
     glide_model.del_cache()
     eval_diffusion = create_gaussian_diffusion(
@@ -126,14 +128,19 @@ def sample(
         timestep_respacing=prediction_respacing,
     )
     # Create the text tokens to feed to the model.
-    tokens = glide_model.tokenizer.encode(prompt)
-    tokens, mask = glide_model.tokenizer.padded_tokens_and_mask(
-        tokens, glide_options["text_ctx"]
-    )
+    tokens, mask = get_tokens_and_mask(prompt=prompt, max_text_len=max_text_len, vocab_dict=vocab_dict)
+    tokens = tokens.tolist()
+    mask = mask.tolist()
+    print(tokens)
+    print(mask)
 
     # Create the classifier-free guidance tokens (empty)
     full_batch_size = batch_size * 2
-    uncond_tokens, uncond_mask = glide_model.tokenizer.padded_tokens_and_mask( [], glide_options["text_ctx"])
+    uncond_tokens, uncond_mask = get_uncond_tokens_mask(max_text_len, vocab_dict)
+    uncond_tokens = uncond_tokens.tolist()
+    uncond_mask = uncond_mask.tolist()
+    print(uncond_tokens)
+    print(uncond_mask)
 
     # Pack the tokens together into model kwargs.
     model_kwargs = dict(
