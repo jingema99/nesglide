@@ -54,11 +54,12 @@ class TextImageDataset(Dataset):
         resize_ratio=0.75,
         shuffle=False,
         tokenizer=None,
-        text_ctx_len=128,
+        max_text_len=3,
         uncond_p=0.0,
         use_captions=False,
         enable_glide_upsample=False,
         upscale_factor=4,
+        vocab_dict = None,
     ):
         super().__init__()
         folder = Path(folder)
@@ -77,7 +78,8 @@ class TextImageDataset(Dataset):
             time.sleep(3)
 
         self.resize_ratio = resize_ratio
-        self.text_ctx_len = text_ctx_len
+        self.max_text_len = max_text_len
+        self.vocab_dict = vocab_dict
 
         self.shuffle = shuffle
         self.prefix = folder
@@ -104,14 +106,14 @@ class TextImageDataset(Dataset):
             return self.random_sample()
         return self.sequential_sample(ind=ind)
 
-    def get_caption(self, ind):
+    def get_caption(self, ind, max_text_len):
         key = self.keys[ind]
         text_file = self.text_files[key]
         descriptions = open(text_file, "r").readlines()
         descriptions = list(filter(lambda t: len(t) > 0, descriptions))
         try:
             description = choice(descriptions).strip()
-            return get_tokens_and_mask(tokenizer=self.tokenizer, prompt=description)
+            return get_tokens_and_mask(prompt=description, max_text_len=max_text_len, vocab_dict=self.vocab_dict)
         except IndexError as zero_captions_in_file_ex:
             print(f"An exception occurred trying to load file {text_file}.")
             print(f"Skipping index {ind}")
@@ -121,9 +123,10 @@ class TextImageDataset(Dataset):
         key = self.keys[ind]
         image_file = self.image_files[key]
         if self.text_files is None or random() < self.uncond_p:
-            tokens, mask = get_uncond_tokens_mask(self.tokenizer)
+            tokens, mask = get_uncond_tokens_mask(self.max_text_len, self.vocab_dict)
         else:
-            tokens, mask = self.get_caption(ind)
+            tokens, mask = self.get_caption(ind, self.max_text_len)
+
 
         try:
             original_pil_image = PIL.Image.open(image_file).convert("RGB")
