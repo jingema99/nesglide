@@ -1,3 +1,4 @@
+#glide_finetune.py
 import os
 from typing import Tuple
 
@@ -176,3 +177,4 @@ def run_glide_finetune_epoch(
         wandb_run.log(log)
     print(f"Finished training, saving final checkpoint")
     train_util.save_model(glide_model, nes_model, checkpoints_dir, train_idx, epoch)
+#glide_finetune.py
