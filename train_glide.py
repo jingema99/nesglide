@@ -88,7 +88,7 @@ def run_glide_finetune(
     print(f"Trainable parameters in GLIDE: {number_of_trainable_params}")
 
     #NES model setup
-    nes_model = NES()
+    nes_model = NES(text_ctx=max_text_len)
     nes_model.train()
 
     if resume_ckpt == "":
