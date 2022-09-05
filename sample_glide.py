@@ -1,6 +1,8 @@
+#sample_glide.py
 import argparse
 from glob import glob
 import os
+import json
 
 import numpy as np
 import torch as th
@@ -13,6 +15,7 @@ from glide_finetune.loader import TextImageDataset
 from glide_finetune.train_util import wandb_setup, pred_to_pil
 from glide_finetune.wds_loader import glide_wds_loader
 from glide_text2im.nes import NES
+
 
 
 def run_glide_finetune(
@@ -44,6 +47,8 @@ def run_glide_finetune(
     enable_upsample=False,
     upsample_factor=4,
     image_to_upsample='low_res_face.png',
+    max_text_len=3,
+    vocab_path = "/content/nesglide/CLEVR_short.json"
 ):
     if "~" in data_dir:
         data_dir = os.path.expanduser(data_dir)
@@ -76,9 +81,18 @@ def run_glide_finetune(
         activation_checkpointing=activation_checkpointing,
         model_type="base" if not enable_upsample else "upsample",
     )
+    glide_model.train()
+    number_of_params = sum(x.numel() for x in glide_model.parameters())
+    print(f"Number of parameters in GLIDE: {number_of_params}")
+    number_of_trainable_params = sum(
+        x.numel() for x in glide_model.parameters() if x.requires_grad
+    )
+    print(f"Trainable parameters in GLIDE: {number_of_trainable_params}")
 
     #NES model setup
-    nes_model = NES()
+    nes_model = NES(text_ctx=max_text_len)
+    nes_model.train()
+
     if resume_ckpt == "":
       pass     
     else:
@@ -93,9 +107,15 @@ def run_glide_finetune(
       except:
         print("no nes weights loaded")
 
+    print("Loading data...")
+    f = open(vocab_path)
+    vocab_dict = json.load(f) 
+    f.close()
+
+    
     glide_model.to(device)
     nes_model.to(device)
-    
+
     glide_model.eval()
     nes_model.eval()
 
@@ -115,10 +135,13 @@ def run_glide_finetune(
                 guidance_scale=sample_gs,
                 device=device,
                 image_to_upsample=image_to_upsample,
+                vocab_dict=vocab_dict,
+                max_text_len=max_text_len,
             )
         sample_save_path = os.path.join(outputs_dir, str(epoch).zfill(6)+".png")
         pred_to_pil(samples).save(sample_save_path)
         print(f"Saved sample {sample_save_path}")
+
 
 
 def parse_args():
@@ -222,6 +245,9 @@ def parse_args():
         "--upscale_factor", "-upscale", type=int, default=4, help="Upscale factor for training the upsampling model only"
     )
     parser.add_argument("--image_to_upsample", "-lowres", type=str, default="low_res_face.png")
+    parser.add_argument("--max_text_len", "-maxlen", type=int, default=3)
+    parser.add_argument("--vocab_path", "-vocab", type=str, default="/content/nesglide/CLEVR_short.json")
+
     args = parser.parse_args()
 
     return args
@@ -278,4 +304,7 @@ if __name__ == "__main__":
         enable_upsample=args.train_upsample,
         upsample_factor=args.upscale_factor,
         image_to_upsample=args.image_to_upsample,
+        max_text_len = args.max_text_len,
+        vocab_path = args.vocab_path,
     )
+  #sample_glide.py
