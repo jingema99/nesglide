@@ -71,6 +71,10 @@ def run_glide_finetune(
     )
     print("Wandb setup.")
 
+    f = open(vocab_path)
+    vocab_dict = json.load(f) 
+    f.close()
+
     # Model setup
     glide_model, glide_diffusion, glide_options = load_model(
         glide_path=resume_ckpt,
@@ -89,7 +93,7 @@ def run_glide_finetune(
     print(f"Trainable parameters in GLIDE: {number_of_trainable_params}")
 
     #NES model setup
-    nes_model = NES(text_ctx=max_text_len)
+    nes_model = NES(text_ctx=max_text_len, n_vocab=len(vocab_dict))
     nes_model.train()
 
     if resume_ckpt == "":
@@ -119,9 +123,7 @@ def run_glide_finetune(
 
     # Data setup
     print("Loading data...")
-    f = open(vocab_path)
-    vocab_dict = json.load(f) 
-    f.close()
+
 
     if use_webdataset:
         dataset = glide_wds_loader(
