@@ -87,9 +87,10 @@ def load_model(
         weights = th.load(glide_path, map_location="cpu")
         glide_model.load_state_dict(weights)
     else:  # use default checkpoint from openai
-        glide_model.load_state_dict(
-            load_checkpoint(model_type, "cpu")
-        )  # always load to cpu, saves memory
+        # glide_model.load_state_dict(
+        #     load_checkpoint(model_type, "cpu")
+        # )  # always load to cpu, saves memory
+        print("Train from scratch")
     if use_fp16:
         glide_model.convert_to_fp16()
         print("Converted to fp16, likely gradients will explode")
