@@ -84,7 +84,6 @@ def run_glide_finetune(
         freeze_diffusion=freeze_diffusion,
         activation_checkpointing=activation_checkpointing,
         model_type="base" if not enable_upsample else "upsample",
-        xf_width=xf_width,
     )
     glide_model.train()
     number_of_params = sum(x.numel() for x in glide_model.parameters())
