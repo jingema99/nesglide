@@ -56,6 +56,7 @@ def load_model(
     freeze_diffusion: bool = False,
     activation_checkpointing: bool = False,
     model_type: str = "base",
+    xf_width: int = 512,
 ):
     assert model_type in MODEL_TYPES, f"Model must be one of {MODEL_TYPES}. Exiting."
     if model_type in ["base", "base-inpaint"]:
@@ -66,6 +67,7 @@ def load_model(
         options["inpaint"] = True
 
     options["use_fp16"] = use_fp16
+    options["xf_width"] = xf_width
     glide_model, glide_diffusion = create_model_and_diffusion(**options)
     if activation_checkpointing:
         glide_model.use_checkpoint = True
