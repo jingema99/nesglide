@@ -48,7 +48,8 @@ def run_glide_finetune(
     upsample_factor=4,
     image_to_upsample='low_res_face.png',
     max_text_len=3,
-    vocab_path = "/content/nesglide/CLEVR_short.json"
+    vocab_path = "/content/nesglide/CLEVR_short.json",
+    xf_width = 512,
 ):
     if "~" in data_dir:
         data_dir = os.path.expanduser(data_dir)
@@ -87,6 +88,7 @@ def run_glide_finetune(
         freeze_diffusion=freeze_diffusion,
         activation_checkpointing=activation_checkpointing,
         model_type="base" if not enable_upsample else "upsample",
+        xf_width=xf_width,
     )
     glide_model.train()
     number_of_params = sum(x.numel() for x in glide_model.parameters())
@@ -97,8 +99,7 @@ def run_glide_finetune(
     print(f"Trainable parameters in GLIDE: {number_of_trainable_params}")
 
     #NES model setup
-    nes_model = NES(text_ctx=max_text_len, n_vocab=len(vocab_dict))
-    nes_model.train()
+    nes_model = NES(text_ctx=max_text_len, n_vocab=len(vocab_dict), xf_width=xf_width)
 
     if resume_ckpt == "":
       pass     
@@ -250,6 +251,7 @@ def parse_args():
     parser.add_argument("--image_to_upsample", "-lowres", type=str, default="low_res_face.png")
     parser.add_argument("--max_text_len", "-maxlen", type=int, default=3)
     parser.add_argument("--vocab_path", "-vocab", type=str, default="/content/nesglide/CLEVR_short.json")
+    parser.add_argument("--xf_width", "-width", type=int, default=512)
 
     args = parser.parse_args()
 
@@ -309,5 +311,6 @@ if __name__ == "__main__":
         image_to_upsample=args.image_to_upsample,
         max_text_len = args.max_text_len,
         vocab_path = args.vocab_path,
+        xf_width= args.xf_width,
     )
 #visualize.py
