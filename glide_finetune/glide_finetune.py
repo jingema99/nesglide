@@ -36,9 +36,6 @@ def base_train_step(
     x_t = glide_diffusion.q_sample(reals, timesteps, noise=noise).to(device)
     _, C = x_t.shape[:2]
 
-    alpha = 0.1
-
-
     Text_outputs = nes_model(
         tokens=tokens.to(device),
         mask=masks.to(device),
@@ -51,19 +48,10 @@ def base_train_step(
     )
 
     model_out = th.mean(th.stack(H),dim=0)
-
     epsilon, _ = th.split(model_out, C, dim=1)
-
-    diff = 0
-    for event in H:
-      event_eps, _ = th.split(event, C, dim=1)
-      diff += th.mean(th.abs(event_eps-epsilon), dim=(0,1,2,3))
-    diff = th.sigmoid(diff/len(H))-0.5
-
-    print("diff:",diff)
     loss = th.nn.functional.mse_loss(epsilon, noise.to(device).detach())
-    print("loss:",loss - alpha * diff)
-    return loss - alpha * diff
+
+    return loss
 
 def upsample_train_step(
     glide_model: Text2ImUNet,
