@@ -252,12 +252,19 @@ def visual(
         )
     )
 
+    global text_outputs
+    text_outputs = None
     def cfg_model_fn(x_t, ts, **kwargs):
         half = x_t[: len(x_t) // 2]
         combined = th.cat([half, half], dim=0)
-        text_outputs = nes_model(**kwargs)
 
-        slot = [text_outputs[0]] 
+        global text_outputs
+        if text_outputs == None:
+          text_outputs = nes_model(**kwargs)
+        else:
+          pass
+
+        slot = [text_outputs[2]] 
 
         H = glide_model(combined, ts, slot)
         model_out = th.mean(th.stack(H),dim=0)
