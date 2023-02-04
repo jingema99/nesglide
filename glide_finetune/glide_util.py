@@ -157,11 +157,20 @@ def sample(
             device=device,
         )
     )
+    
+    global text_outputs
+    text_outputs = None
 
     def cfg_model_fn(x_t, ts, **kwargs):
         half = x_t[: len(x_t) // 2]
         combined = th.cat([half, half], dim=0)
-        text_outputs = nes_model(**kwargs)
+
+        global text_outputs
+        if text_outputs == None:
+          text_outputs = nes_model(**kwargs)
+        else:
+          pass
+
         H = glide_model(combined, ts, text_outputs)
         model_out = th.mean(th.stack(H),dim=0)
         eps, rest = model_out[:, :3], model_out[:, 3:]
